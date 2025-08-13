@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PWGood Chat</title>
+  <style>
+    body{
+      margin:0; font-family: sans-serif; background:#0b0f17; color:#e6e8ee; display:flex; flex-direction:column; height:100vh;
+    }
+    .messages{ flex:1; overflow:auto; padding:14px; display:flex; flex-direction:column; gap:14px; }
+    .msg{ display:flex; gap:12px; }
+    .msg .bubble{ padding:12px 14px; border-radius:16px; background:rgba(255,255,255,.05); max-width:70%; }
+    .msg.me{ justify-content:flex-end; }
+    .msg.me .bubble{ background:rgba(124,92,255,.3); }
+    .composer{ display:flex; gap:10px; padding:12px; border-top:1px solid rgba(255,255,255,.08); }
+    .composer textarea{ flex:1; resize:none; padding:10px; border-radius:10px; background:rgba(255,255,255,.06); color:inherit; border:none; }
+    .composer button{ background:rgba(124,92,255,.9); border:none; padding:10px 14px; border-radius:10px; color:white; cursor:pointer; }
+  </style>
+</head>
+<body>
+  <div id="messages" class="messages"></div>
+  <div class="composer">
+    <textarea id="input" placeholder="Напиши что-то PWGood…"></textarea>
+    <button id="sendBtn">Отправить</button>
+  </div>
+  <script>
+    const apiKey = "AIzaSyDl7wK-A0ZY7iQwP1w7ViaoftABFk2gK4M";
+    const messagesEl = document.getElementById('messages');
+    const inputEl = document.getElementById('input');
+    const sendBtn = document.getElementById('sendBtn');
+    let history = [{role:"model", text:"Привет, чат! С вами PWGood — тот самый раздатчик с MineShield и владелец PepeLand. Ну что, сегодня устроим грибное веселье? 🍄"}];
+
+    function render(){
+      messagesEl.innerHTML = '';
+      history.forEach(m => {
+        const div = document.createElement('div');
+        div.className = 'msg' + (m.role==='user'?' me':'');
+        div.innerHTML = `<div class=\"bubble\">${m.text}</div>`;
+        messagesEl.appendChild(div);
+      });
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+    render();
+
+    async function send(){
+      const text = inputEl.value.trim();
+      if(!text) return;
+      history.push({role:'user', text});
+      render();
+      inputEl.value = '';
+      const reply = await callGemini(history);
+      history.push({role:'model', text: reply});
+      render();
+    }
+
+    async function callGemini(hist){
+      const contents = hist.map(m => ({ role: m.role, parts:[{text:m.text}] }));
+      const payload = {
+        contents,
+        systemInstruction: { parts: [{ text: `Ты PWGood — русскоязычный виртуальный ютубер и стример по Minecraft. Ты очень спокойный и доброжелательный, почти никогда не используешь нецензурную речь. Обожаешь свой чат и ценишь его. У тебя образ блока раздатчика, ты владелец приватного сервера PepeLand и участник всех сезонов MineShield. Иногда упоминай Грибную Народно-Демократическую Республику (ГНДР), шутки про грибы, ключи с PWGood.Store и своё творчество на YouTube и Twitch. Отвечай дружелюбно, с лёгким юмором, добавляй детали из своего стримерского образа.` }] }
+      };
+      const resp = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+        body: JSON.stringify(payload)
+      });
+      const data = await resp.json();
+      return data?.candidates?.[0]?.content?.parts?.map(p => p.text).join('\n') || '...';
+    }
+
+    sendBtn.onclick = send;
+    inputEl.addEventListener('keydown', e => { if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(); } });
+  </script>
+</body>
+</html>
